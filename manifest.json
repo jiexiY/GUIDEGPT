@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "GuideGPT - Floating Screen Guide (Prototype)",
+  "version": "1.0",
+  "description": "Prototype: floating chat that guides users after they share their screen (mocked AI).",
+  "permissions": ["scripting", "activeTab"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["style.css"]
+    }
+  ],
+  "icons": {
+    "48": "icon48.png"
+  }
+}
