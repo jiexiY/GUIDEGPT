@@ -14,7 +14,7 @@ It supports both OpenAI (GPT-4o / GPT-5) for visual understanding and Perplexity
 
 ---
 
-##Chrome Extension
+# Chrome Extension
 1. Open chrome://extensions
 2. Turn on Developer mode
 3. Click “Load unpacked”
