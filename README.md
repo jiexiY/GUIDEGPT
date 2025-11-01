@@ -13,8 +13,8 @@ It supports both OpenAI (GPT-4o / GPT-5) for visual understanding and Perplexity
 - Floating chat widget on any webpage  
 - OpenAI Vision (screenshot) or Perplexity Sonar (URL + text) modes  
 - Local mock mode when API keys are missing  
-- Tiny history panel (last 5 prompts)  
-- Unified backend endpoint `/analyze`
+- History panel
+- Active cursor for clear visual navigations 
 
 ---
 
