@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { resolveLanguage } from "./language.js";
 
 let sqlClient;
 let schemaPromise;
@@ -26,6 +27,8 @@ export async function ensureSchema() {
           goal TEXT NOT NULL,
           page_url TEXT NOT NULL DEFAULT '',
           page_title TEXT NOT NULL DEFAULT '',
+          language TEXT NOT NULL DEFAULT 'en-US'
+            CHECK (language IN ('en-US', 'zh-CN', 'ko-KR', 'ja-JP', 'es-ES', 'ru-RU', 'pt-BR')),
           summary TEXT NOT NULL,
           steps JSONB NOT NULL,
           generation_mode TEXT NOT NULL DEFAULT 'ai'
@@ -44,6 +47,42 @@ export async function ensureSchema() {
       await db`
         ALTER TABLE guidegpt_missions
         ADD COLUMN IF NOT EXISTS generation_mode TEXT NOT NULL DEFAULT 'ai'
+      `;
+      await db`
+        ALTER TABLE guidegpt_missions
+        ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'en-US'
+      `;
+      await db`
+        UPDATE guidegpt_missions
+        SET language = 'en-US'
+        WHERE
+          language IS NULL
+          OR language NOT IN ('en-US', 'zh-CN', 'ko-KR', 'ja-JP', 'es-ES', 'ru-RU', 'pt-BR')
+      `;
+      await db`
+        ALTER TABLE guidegpt_missions
+        ALTER COLUMN language SET DEFAULT 'en-US'
+      `;
+      await db`
+        ALTER TABLE guidegpt_missions
+        ALTER COLUMN language SET NOT NULL
+      `;
+      await db`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1
+            FROM pg_constraint
+            WHERE
+              conname = 'guidegpt_missions_language_check'
+              AND conrelid = 'guidegpt_missions'::regclass
+          ) THEN
+            ALTER TABLE guidegpt_missions
+            ADD CONSTRAINT guidegpt_missions_language_check
+            CHECK (language IN ('en-US', 'zh-CN', 'ko-KR', 'ja-JP', 'es-ES', 'ru-RU', 'pt-BR'));
+          END IF;
+        END
+        $$
       `;
       await db`
         ALTER TABLE guidegpt_missions
@@ -98,13 +137,14 @@ export function sanitizeStoredUrl(rawUrl) {
   }
 }
 
-function mapMission(row) {
+export function mapMission(row) {
   const steps = typeof row.steps === "string" ? JSON.parse(row.steps) : row.steps;
   return {
     id: row.id,
     goal: row.goal,
     pageUrl: row.page_url,
     pageTitle: row.page_title,
+    language: resolveLanguage(row.language),
     summary: row.summary,
     steps,
     generationMode: row.generation_mode || "ai",
@@ -155,6 +195,7 @@ export async function createMission({
   goal,
   pageUrl,
   pageTitle,
+  language = "en-US",
   summary,
   steps,
   usage,
@@ -169,6 +210,7 @@ export async function createMission({
       goal,
       page_url,
       page_title,
+      language,
       summary,
       steps,
       generation_mode,
@@ -181,6 +223,7 @@ export async function createMission({
       ${goal},
       ${sanitizeStoredUrl(pageUrl)},
       ${pageTitle.slice(0, 240)},
+      ${resolveLanguage(language)},
       ${summary},
       ${JSON.stringify(steps)}::jsonb,
       ${generationMode},
