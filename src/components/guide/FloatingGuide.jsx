@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowCounterClockwise,
   ArrowLeft,
@@ -9,11 +9,14 @@ import {
   CopySimple,
   DotsSixVertical,
   Eye,
+  GlobeHemisphereWest,
   LockSimple,
   Minus,
   Palette,
   PaperPlaneTilt,
   Sparkle,
+  SpeakerHigh,
+  SpeakerSlash,
   SpinnerGap,
   Target,
   ThumbsDown,
@@ -22,9 +25,21 @@ import {
   User,
   X,
 } from "@phosphor-icons/react";
+import { SpeechInput } from "@/components/ai-elements/speech-input";
 import { GuideBrand } from "./ProductHome";
+import { LANGUAGE_OPTIONS, normalizeLanguage, t } from "@/lib/languages";
+import { transcribeAudio } from "@/lib/api";
+import {
+  cancelSpeech,
+  canRecognizeSpeech,
+  canSpeak,
+  missionSpeechLanguage,
+  shouldCancelMissionSpeech,
+  speak,
+} from "@/lib/speech";
 
 const PREFERENCES_KEY = "guidegpt:capsule-preferences:v1";
+const VOICE_OVER_KEY = "guidegpt:voice-over:v1";
 const EDGE_MARGIN = 8;
 const THEME_OPTIONS = [
   { id: "cobalt", label: "Cobalt" },
@@ -111,12 +126,25 @@ function readPreferences() {
   }
 }
 
-function MissionProgress({ mission }) {
+function readVoicePreference() {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(VOICE_OVER_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function AssistantResponse({ children, language }) {
+  return <p className="assistant-response" lang={language}>{children}</p>;
+}
+
+function MissionProgress({ mission, language }) {
   const total = mission?.steps?.length || 0;
   const current = Math.min(mission?.currentStep || 0, total);
 
   return (
-    <ol className="capsule-plan" aria-label="Guide plan">
+    <ol className="capsule-plan" aria-label={t(language, "guidePlan")}>
       {(mission?.steps || []).map((step, index) => {
         const complete = mission.status === "completed" || index < current;
         const active = mission.status !== "completed" && index === current;
@@ -125,7 +153,7 @@ function MissionProgress({ mission }) {
             <span className="capsule-plan__marker" aria-hidden="true">
               {complete ? <Check size={12} weight="bold" /> : index + 1}
             </span>
-            <span>{step.title || "Preparing the next step"}</span>
+            <span>{step.title || t(language, "preparingStep")}</span>
           </li>
         );
       })}
@@ -133,7 +161,7 @@ function MissionProgress({ mission }) {
   );
 }
 
-function StepContents({ mission, onAdvance, onHighlight, compact = false }) {
+function StepContents({ mission, language, contentLanguage, onAdvance, onHighlight, compact = false }) {
   const total = mission?.steps?.length || 0;
   const index = Math.min(mission?.currentStep || 0, total);
   const step = mission?.steps?.[index];
@@ -143,50 +171,55 @@ function StepContents({ mission, onAdvance, onHighlight, compact = false }) {
   return (
     <div className={compact ? "step-contents is-compact" : "step-contents"}>
       <div className="step-contents__topline">
-        <strong>Step {index + 1} of {total}</strong>
-        <span className="step-progress" aria-label={`${index + 1} of ${total} steps`}>
+        <strong>{t(language, "step", { current: index + 1, total })}</strong>
+        <span className="step-progress" aria-label={t(language, "stepProgress", { current: index + 1, total })}>
           {mission.steps.map((_, stepIndex) => (
             <span className={stepIndex <= index ? "is-active" : ""} key={stepIndex} />
           ))}
         </span>
       </div>
-      <p>{step.instruction}</p>
+      <p lang={contentLanguage}>{step.instruction}</p>
       <div className="step-actions">
         {step.targetText && (
           <button type="button" onClick={() => onHighlight(step.targetText)}>
-            <Target size={16} weight="bold" />Show me
+            <Target size={16} weight="bold" />{t(language, "showMe")}
           </button>
         )}
         <button className="is-primary" type="button" onClick={onAdvance}>
-          Done <Check size={15} weight="bold" />
+          {t(language, "done")} <Check size={15} weight="bold" />
         </button>
       </div>
     </div>
   );
 }
 
-function GuideTooltip({ mission, loading, theme, onAdvance, onHighlight }) {
+function GuideTooltip({ mission, loading, theme, language, contentLanguage, onAdvance, onHighlight }) {
   if (loading || !mission?.steps?.length || mission.status === "completed") return null;
 
   return (
-    <aside className="guide-tooltip" data-theme={theme} data-guidegpt-ui aria-label="Current GuideGPT step" aria-live="polite">
-      <StepContents mission={mission} onAdvance={onAdvance} onHighlight={onHighlight} />
+    <aside className="guide-tooltip" data-theme={theme} data-guidegpt-ui aria-label={t(language, "currentStep")} aria-live="polite">
+      <StepContents mission={mission} language={language} contentLanguage={contentLanguage} onAdvance={onAdvance} onHighlight={onHighlight} />
     </aside>
   );
 }
 
-function HistoryView({ missions, onBack, onResume, onClear }) {
+function HistoryView({ missions, language, onBack, onResume, onClear }) {
   const [confirming, setConfirming] = useState(false);
+  const statusKeys = {
+    active: "statusActive",
+    paused: "statusPaused",
+    completed: "statusCompleted",
+  };
 
   return (
     <div className="capsule-history">
       <div className="capsule-history__heading">
-        <button type="button" onClick={onBack} aria-label="Back to GuideGPT">
+        <button type="button" onClick={onBack} aria-label={t(language, "back")}>
           <ArrowLeft size={18} />
         </button>
         <div>
-          <span>Private to this browser</span>
-          <h2>Mission history</h2>
+          <span>{t(language, "privateBrowser")}</span>
+          <h2>{t(language, "missionHistory")}</h2>
         </div>
       </div>
 
@@ -194,14 +227,17 @@ function HistoryView({ missions, onBack, onResume, onClear }) {
         {missions.length === 0 ? (
           <div className="capsule-history__empty">
             <ClockCounterClockwise size={25} />
-            <strong>No missions yet</strong>
-            <span>Your saved guides will appear here.</span>
+            <strong>{t(language, "noMissions")}</strong>
+            <span>{t(language, "savedGuides")}</span>
           </div>
         ) : missions.map((item) => (
           <button className="capsule-history__item" type="button" key={item.id} onClick={() => onResume(item)}>
-            <span>{item.status}{item.generationMode === "fallback" ? " · basic guide" : ""}</span>
+            <span>
+              {t(language, statusKeys[item.status] || "statusActive")}
+              {item.generationMode === "fallback" ? ` · ${t(language, "basicGuide")}` : ""}
+            </span>
             <strong>{item.goal}</strong>
-            <small>{item.pageTitle || item.pageUrl || "Untitled page"}</small>
+            <small>{item.pageTitle || item.pageUrl || t(language, "untitledPage")}</small>
           </button>
         ))}
       </div>
@@ -210,12 +246,12 @@ function HistoryView({ missions, onBack, onResume, onClear }) {
         <div className="capsule-history__footer">
           {confirming ? (
             <div>
-              <span>Clear all private mission history?</span>
-              <button type="button" onClick={() => setConfirming(false)}>Cancel</button>
-              <button className="is-danger" type="button" onClick={onClear}>Clear</button>
+              <span>{t(language, "clearHistoryPrompt")}</span>
+              <button type="button" onClick={() => setConfirming(false)}>{t(language, "cancel")}</button>
+              <button className="is-danger" type="button" onClick={onClear}>{t(language, "clear")}</button>
             </div>
           ) : (
-            <button type="button" onClick={() => setConfirming(true)}><Trash size={15} />Clear history</button>
+            <button type="button" onClick={() => setConfirming(true)}><Trash size={15} />{t(language, "clearHistory")}</button>
           )}
         </div>
       )}
@@ -227,6 +263,7 @@ export function FloatingGuide({
   open,
   historyOpen,
   health,
+  language,
   mission,
   loading,
   error,
@@ -235,6 +272,7 @@ export function FloatingGuide({
   missions,
   onOpen,
   onClose,
+  onLanguageChange,
   onShowHistory,
   onBackFromHistory,
   onResume,
@@ -243,9 +281,18 @@ export function FloatingGuide({
   onAdvance,
   onHighlight,
 }) {
-  const [copied, setCopied] = useState(false);
+  const [copyStatus, setCopyStatus] = useState("");
   const [customizerOpen, setCustomizerOpen] = useState(false);
   const [interaction, setInteraction] = useState("");
+  const [voiceOver, setVoiceOver] = useState(readVoicePreference);
+  const [speaking, setSpeaking] = useState(false);
+  const [voiceState, setVoiceState] = useState(() => ({
+    available: canRecognizeSpeech(),
+    isListening: false,
+    isProcessing: false,
+    mode: canRecognizeSpeech() ? "speech-recognition" : "none",
+  }));
+  const [voiceNotice, setVoiceNotice] = useState("");
   const [initialPreferences] = useState(readPreferences);
   const [theme, setTheme] = useState(initialPreferences.theme);
   const [layoutMode, setLayoutMode] = useState(currentLayoutMode);
@@ -253,9 +300,45 @@ export function FloatingGuide({
   const layoutsRef = useRef(initialPreferences.layouts);
   const themeRef = useRef(initialPreferences.theme);
   const pointerStartRef = useRef(null);
+  const lastSpokenRef = useRef("");
   const total = mission?.steps?.length || 0;
   const complete = mission?.status === "completed" || (total > 0 && mission.currentStep >= total);
   const layout = normalizeLayout(layouts[layoutMode], layoutMode);
+  const inputLanguage = normalizeLanguage(language);
+  const missionLanguage = missionSpeechLanguage(mission, language);
+
+  const handleVoiceState = useCallback((nextState) => {
+    setVoiceState((current) => (
+      current.available === nextState.available
+      && current.isListening === nextState.isListening
+      && current.isProcessing === nextState.isProcessing
+      && current.mode === nextState.mode
+        ? current
+        : nextState
+    ));
+    setVoiceNotice((current) => {
+      if (nextState.isListening) return t(language, "listening");
+      if (nextState.isProcessing) return t(language, "transcribing");
+      if ([t(language, "listening"), t(language, "transcribing")].includes(current)) return "";
+      return current;
+    });
+  }, [language]);
+
+  const handleTranscript = useCallback((transcript) => {
+    const clean = String(transcript || "").replace(/\s+/g, " ").trim();
+    if (!clean) return;
+    setComposer((current) => [current.trim(), clean].filter(Boolean).join(" ").slice(0, 400));
+    setVoiceNotice(t(language, "transcriptReady"));
+  }, [language, setComposer]);
+
+  const handleVoiceError = useCallback(() => {
+    setVoiceNotice(t(language, "voiceError"));
+  }, [language]);
+
+  const handleAudioRecorded = useCallback(async (audioBlob) => {
+    setVoiceNotice(t(language, "transcribing"));
+    return transcribeAudio(audioBlob, inputLanguage);
+  }, [inputLanguage, language]);
 
   function persistPreferences(nextLayouts = layoutsRef.current, nextTheme = themeRef.current) {
     if (typeof window === "undefined") return;
@@ -284,6 +367,21 @@ export function FloatingGuide({
 
   function resetCurrentLayout() {
     updateCurrentLayout(defaultLayout(layoutMode), true);
+  }
+
+  function toggleVoiceOver() {
+    const next = !voiceOver;
+    setVoiceOver(next);
+    lastSpokenRef.current = "";
+    try {
+      window.localStorage.setItem(VOICE_OVER_KEY, String(next));
+    } catch {
+      // Voice-over still works for the current session when storage is blocked.
+    }
+    if (!next) {
+      cancelSpeech();
+      setSpeaking(false);
+    }
   }
 
   function beginPointerInteraction(event, type) {
@@ -370,6 +468,55 @@ export function FloatingGuide({
   }, [open]);
 
   useEffect(() => {
+    cancelSpeech();
+    setSpeaking(false);
+    lastSpokenRef.current = "";
+    setVoiceNotice("");
+  }, [language]);
+
+  useEffect(() => {
+    if (open) return;
+    cancelSpeech();
+    setSpeaking(false);
+  }, [open]);
+
+  useEffect(() => {
+    if (!shouldCancelMissionSpeech(historyOpen, loading)) return;
+    cancelSpeech();
+    setSpeaking(false);
+    lastSpokenRef.current = "";
+  }, [historyOpen, loading]);
+
+  useEffect(() => () => cancelSpeech(), []);
+
+  useEffect(() => {
+    if (!voiceOver || !open || historyOpen || loading || !mission) return;
+    const totalSteps = mission.steps?.length || 0;
+    const stepIndex = Math.min(mission.currentStep || 0, Math.max(0, totalSteps - 1));
+    const step = mission.steps?.[stepIndex];
+    const isComplete = mission.status === "completed" || (totalSteps > 0 && mission.currentStep >= totalSteps);
+    const speechKey = [missionLanguage, mission.id || mission.goal, mission.status, mission.currentStep, mission.summary].join(":");
+    if (lastSpokenRef.current === speechKey) return;
+
+    const spokenParts = isComplete
+      ? [t(missionLanguage, "missionComplete"), mission.summary || t(missionLanguage, "finished")]
+      : [
+          (mission.currentStep || 0) === 0 ? mission.summary : "",
+          step?.title,
+          step?.instruction,
+        ];
+    const spokenText = spokenParts.filter(Boolean).join(" ");
+    if (!spokenText) return;
+
+    const started = speak(spokenText, missionLanguage, {
+      onStart: () => setSpeaking(true),
+      onEnd: () => setSpeaking(false),
+      onError: () => setSpeaking(false),
+    });
+    if (started) lastSpokenRef.current = speechKey;
+  }, [historyOpen, loading, mission, missionLanguage, open, voiceOver]);
+
+  useEffect(() => {
     function handleEscape(event) {
       if (event.key === "Escape") setCustomizerOpen(false);
     }
@@ -382,14 +529,19 @@ export function FloatingGuide({
       .filter(Boolean)
       .join("\n");
     if (!text) return;
-    await navigator.clipboard?.writeText(text);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1600);
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
+      await navigator.clipboard.writeText(text);
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("copyFailed");
+    }
+    window.setTimeout(() => setCopyStatus(""), 1600);
   }
 
   if (!open) {
     return (
-      <button className="guide-launcher" data-theme={theme} data-guidegpt-ui type="button" onClick={onOpen} aria-label="Open GuideGPT">
+      <button className="guide-launcher" data-theme={theme} data-guidegpt-ui type="button" onClick={onOpen} aria-label={t(language, "open")}>
         <span><Sparkle size={17} weight="fill" /></span>
         <strong>GuideGPT</strong>
       </button>
@@ -402,8 +554,8 @@ export function FloatingGuide({
         className={`command-capsule${interaction ? ` is-${interaction}` : ""}`}
         data-theme={theme}
         data-guidegpt-ui
-        aria-label="GuideGPT assistant"
-        aria-live="polite"
+        aria-label={t(language, "assistantLabel")}
+        lang={inputLanguage}
         style={{
           left: `${layout.x}px`,
           top: `${layout.y}px`,
@@ -420,8 +572,8 @@ export function FloatingGuide({
             <button
               className="capsule-drag-handle"
               type="button"
-              aria-label="Drag GuideGPT window"
-              title="Drag window · Arrow keys also move it"
+              aria-label={t(language, "dragWindow")}
+              title={t(language, "dragWindowHint")}
               onPointerDown={(event) => beginPointerInteraction(event, "drag")}
               onPointerMove={continuePointerInteraction}
               onPointerUp={endPointerInteraction}
@@ -434,40 +586,71 @@ export function FloatingGuide({
           </div>
           <div className="capsule-header__status">
             <span className={health?.status === "ready" ? "is-ready" : ""} />
-            {health?.status === "ready" ? "On this page" : "Demo mode"}
+            {health?.status === "ready"
+              ? t(language, "onPage")
+              : t(language, health?.status === "checking" ? "connecting" : "demoMode")}
           </div>
           <div className="capsule-header__actions">
             <button
+              className={speaking ? "is-speaking" : ""}
+              type="button"
+              onClick={toggleVoiceOver}
+              aria-label={canSpeak()
+                ? t(language, voiceOver ? "voiceOn" : "voiceOff")
+                : t(language, "voiceOverUnavailable")}
+              aria-pressed={voiceOver}
+              title={canSpeak()
+                ? t(language, voiceOver ? "voiceOn" : "voiceOff")
+                : t(language, "voiceOverUnavailable")}
+              disabled={!canSpeak()}
+            >
+              {voiceOver ? <SpeakerHigh size={18} weight={speaking ? "fill" : "regular"} /> : <SpeakerSlash size={18} />}
+            </button>
+            <button
               type="button"
               onClick={() => setCustomizerOpen((current) => !current)}
-              aria-label="Customize GuideGPT"
+              aria-label={t(language, "customize")}
               aria-expanded={customizerOpen}
-              title="Customize window"
+              title={t(language, "customize")}
             >
               <Palette size={18} />
             </button>
-            <button type="button" onClick={onShowHistory} aria-label="Mission history" title="Mission history">
+            <button type="button" onClick={onShowHistory} aria-label={t(language, "missionHistory")} title={t(language, "missionHistory")}>
               <ClockCounterClockwise size={18} />
             </button>
-            <button type="button" onClick={onClose} aria-label="Minimize GuideGPT" title="Minimize">
+            <button className="capsule-minimize" type="button" onClick={onClose} aria-label={t(language, "minimize")} title={t(language, "minimize")}>
               <Minus size={18} />
             </button>
-            <button type="button" onClick={onClose} aria-label="Close GuideGPT" title="Close">
+            <button type="button" onClick={onClose} aria-label={t(language, "close")} title={t(language, "close")}>
               <X size={18} />
             </button>
           </div>
         </div>
 
         {customizerOpen && (
-          <section className="capsule-customizer" aria-label="Customize GuideGPT window">
+          <section className="capsule-customizer" aria-label={t(language, "customizerRegion")}>
             <div className="capsule-customizer__heading">
               <div>
-                <strong>Make it yours</strong>
-                <span>Drag anywhere. Resize to any ratio.</span>
+                <strong>{t(language, "makeYours")}</strong>
+                <span>{t(language, "dragResize")}</span>
               </div>
               <span>{Math.round(layout.width)} × {Math.round(layout.height)}</span>
             </div>
-            <div className="theme-options" role="group" aria-label="Window color">
+            <label className="capsule-language">
+              <span><GlobeHemisphereWest size={15} />{t(language, "language")}</span>
+              <select
+                value={language}
+                onChange={(event) => onLanguageChange(event.target.value)}
+                aria-label={t(language, "language")}
+              >
+                {LANGUAGE_OPTIONS.map((option) => (
+                  <option value={option.id} key={option.id}>
+                    {option.nativeLabel} · {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="theme-options" role="group" aria-label={t(language, "windowColor")}>
               {THEME_OPTIONS.map((option) => (
                 <button
                   className={theme === option.id ? "is-selected" : ""}
@@ -475,9 +658,9 @@ export function FloatingGuide({
                   type="button"
                   key={option.id}
                   onClick={() => chooseTheme(option.id)}
-                  aria-label={`Use ${option.label} color`}
+                  aria-label={t(language, "useColor", { theme: option.label })}
                   aria-pressed={theme === option.id}
-                  title={option.label}
+                  title={t(language, "useColor", { theme: option.label })}
                 >
                   <span aria-hidden="true">{theme === option.id && <Check size={12} weight="bold" />}</span>
                   <small>{option.label}</small>
@@ -485,7 +668,7 @@ export function FloatingGuide({
               ))}
             </div>
             <button className="reset-window" type="button" onClick={resetCurrentLayout}>
-              <ArrowCounterClockwise size={15} />Reset size and position
+              <ArrowCounterClockwise size={15} />{t(language, "resetWindow")}
             </button>
           </section>
         )}
@@ -493,6 +676,7 @@ export function FloatingGuide({
         {historyOpen ? (
           <HistoryView
             missions={missions}
+            language={language}
             onBack={onBackFromHistory}
             onResume={onResume}
             onClear={onClearHistory}
@@ -503,7 +687,7 @@ export function FloatingGuide({
               {mission?.goal && (
                 <div className="conversation-turn is-user">
                   <span className="conversation-avatar"><User size={15} weight="fill" /></span>
-                  <p>{mission.goal}</p>
+                  <p lang={missionLanguage}>{mission.goal}</p>
                 </div>
               )}
 
@@ -513,57 +697,91 @@ export function FloatingGuide({
                   {loading ? (
                     <div className="assistant-loading">
                       <SpinnerGap size={17} className="spin" />
-                      <span>Reading the visible page and building your guide…</span>
+                      <span>{t(language, "reading")}</span>
                     </div>
                   ) : complete ? (
                     <>
-                      <strong>Mission complete.</strong>
-                      <p>{mission?.summary || "You finished every step in this guide."}</p>
+                      <strong>{t(language, "missionComplete")}</strong>
+                      <AssistantResponse language={missionLanguage}>
+                        {mission?.summary || t(language, "finished")}
+                      </AssistantResponse>
                     </>
                   ) : (
                     <>
-                      <p>{mission?.summary || "Tell me what you want to accomplish and I’ll guide you one safe step at a time."}</p>
-                      <MissionProgress mission={mission} />
+                      <AssistantResponse language={missionLanguage}>
+                        {mission?.summary || t(language, "prompt")}
+                      </AssistantResponse>
+                      <MissionProgress mission={mission} language={missionLanguage} />
                     </>
                   )}
                   <div className="privacy-inline">
                     <LockSimple size={15} weight="fill" />
-                    <span><strong>Privacy first.</strong> I only use what is visible on this page.</span>
+                    <span><strong>{t(language, "privacyTitle")}</strong> {t(language, "privacyBody")}</span>
                   </div>
                 </div>
               </div>
 
               {!loading && mission && (
-                <div className="response-actions" aria-label="Response actions">
-                  <button type="button" aria-label="Helpful"><ThumbsUp size={16} /></button>
-                  <button type="button" aria-label="Not helpful"><ThumbsDown size={16} /></button>
-                  <button type="button" onClick={copySummary} aria-label="Copy guide"><CopySimple size={16} />{copied && <span>Copied</span>}</button>
+                <div className="response-actions" aria-label={t(language, "responseActions")}>
+                  <button type="button" aria-label={t(language, "helpful")} title={t(language, "helpful")}><ThumbsUp size={16} /></button>
+                  <button type="button" aria-label={t(language, "notHelpful")} title={t(language, "notHelpful")}><ThumbsDown size={16} /></button>
+                  <button type="button" onClick={copySummary} aria-label={t(language, "copyGuide")} title={t(language, "copyGuide")}>
+                    <CopySimple size={16} />
+                    {copyStatus && <span role="status">{t(language, copyStatus)}</span>}
+                  </button>
                 </div>
               )}
 
               <div className="mobile-step">
-                <StepContents mission={mission} onAdvance={onAdvance} onHighlight={onHighlight} compact />
+                <StepContents mission={mission} language={language} contentLanguage={missionLanguage} onAdvance={onAdvance} onHighlight={onHighlight} compact />
               </div>
 
               {error && <div className="capsule-error" role="alert">{error}</div>}
             </div>
 
             <form className="capsule-composer" onSubmit={onSubmit}>
-              <label className="sr-only" htmlFor="guide-composer">Ask GuideGPT about this page</label>
+              <label className="sr-only" htmlFor="guide-composer">{t(language, "composerLabel")}</label>
               <textarea
                 id="guide-composer"
                 value={composer}
                 onChange={(event) => setComposer(event.target.value)}
-                placeholder="Ask a follow-up or start a new guide…"
+                placeholder={t(language, "placeholder")}
                 maxLength={400}
                 rows={2}
                 disabled={loading}
               />
+              {voiceNotice && (
+                <div
+                  className="composer-voice-status"
+                  data-error={voiceNotice === t(language, "voiceError") ? "true" : "false"}
+                  role="status"
+                >
+                  <span className={voiceState.isListening ? "is-listening" : ""} aria-hidden="true" />
+                  {voiceNotice}
+                </div>
+              )}
               <div className="composer-tools">
-                <span><Eye size={15} />Visible page</span>
-                <button type="submit" disabled={loading || composer.trim().length < 3} aria-label="Send to GuideGPT">
-                  {loading ? <SpinnerGap size={17} className="spin" /> : <PaperPlaneTilt size={18} weight="fill" />}
-                </button>
+                <span><Eye size={15} />{t(language, "visiblePage")}</span>
+                <div className="composer-actions">
+                  <SpeechInput
+                    key={inputLanguage}
+                    className="composer-microphone"
+                    type="button"
+                    lang={inputLanguage}
+                    disabled={loading}
+                    onTranscriptionChange={handleTranscript}
+                    onAudioRecorded={handleAudioRecorded}
+                    onListeningChange={handleVoiceState}
+                    onError={handleVoiceError}
+                    aria-label={voiceState.isListening ? t(language, "stopListening") : t(language, "microphone")}
+                    title={voiceState.available
+                      ? (voiceState.isListening ? t(language, "stopListening") : t(language, "microphone"))
+                      : t(language, "voiceUnavailable")}
+                  />
+                  <button className="composer-send" type="submit" disabled={loading || composer.trim().length < 3} aria-label={t(language, loading ? "reading" : "send")}>
+                    {loading ? <SpinnerGap size={17} className="spin" /> : <PaperPlaneTilt size={18} weight="fill" />}
+                  </button>
+                </div>
               </div>
             </form>
           </>
@@ -572,8 +790,8 @@ export function FloatingGuide({
         <button
           className="capsule-resize-handle"
           type="button"
-          aria-label="Resize GuideGPT window"
-          title="Drag to resize · Arrow keys also resize"
+          aria-label={t(language, "resizeWindow")}
+          title={t(language, "resizeWindowHint")}
           onPointerDown={(event) => beginPointerInteraction(event, "resize")}
           onPointerMove={continuePointerInteraction}
           onPointerUp={endPointerInteraction}
@@ -589,6 +807,8 @@ export function FloatingGuide({
           mission={mission}
           loading={loading}
           theme={theme}
+          language={language}
+          contentLanguage={missionLanguage}
           onAdvance={onAdvance}
           onHighlight={onHighlight}
         />

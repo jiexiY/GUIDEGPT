@@ -2,13 +2,50 @@ const PRODUCTION_ORIGIN = "https://guidegpt-next.vercel.app";
 const PREVIEW_HOST =
   /^guidegpt-next(?:-[a-z0-9-]+)?-jessie4jiexi-3146s-projects\.vercel\.app$/i;
 
-export function isAllowedOrigin(origin) {
+function normalizedHttpOrigin(value, defaultProtocol = "https:") {
+  const candidate = String(value || "").trim();
+  if (!candidate) return "";
+
+  try {
+    const url = new URL(candidate.includes("://") ? candidate : `${defaultProtocol}//${candidate}`);
+    if (!["http:", "https:"].includes(url.protocol)) return "";
+    return url.origin;
+  } catch {
+    return "";
+  }
+}
+
+function currentRequestOrigin(request) {
+  const host = String(request?.headers?.host || "").split(",")[0].trim();
+  if (!host) return "";
+  const forwardedProtocol = String(request?.headers?.["x-forwarded-proto"] || "")
+    .split(",")[0]
+    .trim()
+    .toLowerCase();
+  const localHost = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host);
+  const protocol = ["http", "https"].includes(forwardedProtocol)
+    ? `${forwardedProtocol}:`
+    : localHost ? "http:" : "https:";
+  return normalizedHttpOrigin(host, protocol);
+}
+
+function configuredOrigins() {
+  return new Set([
+    normalizedHttpOrigin(process.env.PUBLIC_APP_URL),
+    normalizedHttpOrigin(process.env.VERCEL_URL),
+  ].filter(Boolean));
+}
+
+export function isAllowedOrigin(origin, request) {
   if (!origin) return true;
   if (origin === PRODUCTION_ORIGIN) return true;
   if (origin.startsWith("chrome-extension://")) return true;
 
   try {
     const url = new URL(origin);
+    const normalizedOrigin = url.origin;
+    if (normalizedOrigin === currentRequestOrigin(request)) return true;
+    if (configuredOrigins().has(normalizedOrigin)) return true;
     if (
       url.protocol === "http:" &&
       ["localhost", "127.0.0.1"].includes(url.hostname)
@@ -23,7 +60,7 @@ export function isAllowedOrigin(origin) {
 
 export function applyCors(request, response) {
   const origin = request.headers.origin;
-  const allowed = isAllowedOrigin(origin);
+  const allowed = isAllowedOrigin(origin, request);
 
   response.setHeader("Vary", "Origin");
   response.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");

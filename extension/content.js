@@ -23,8 +23,8 @@
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
       * { box-sizing: border-box; }
-      button, textarea { font: inherit; }
-      button:focus-visible, textarea:focus-visible {
+      button, textarea, select { font: inherit; }
+      button:focus-visible, textarea:focus-visible, select:focus-visible {
         outline: 3px solid rgba(var(--gg-blue-rgb), .32);
         outline-offset: 2px;
       }
@@ -82,6 +82,7 @@
       }
       .header { justify-content: space-between; gap: 12px; }
       .header-actions { gap: 3px; }
+      .header-actions .icon-button { width: auto; min-width: 38px; padding: 0 6px; }
       .brand { gap: 8px; color: var(--gg-blue); font-size: 11px; font-weight: 800; }
       .brand .brand-dot { width: 24px; height: 24px; font-size: 10px; }
       .drag-handle {
@@ -119,9 +120,7 @@
       .customizer {
         margin: 10px 0 0;
         padding: 8px 10px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
+        display: grid;
         gap: 10px;
         border: 1px solid rgba(255,255,255,.13);
         border-radius: 10px;
@@ -131,6 +130,34 @@
         color: #c6cedb;
         font-size: 10px;
         font-weight: 750;
+      }
+      .customizer-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .preference-controls { display: flex; align-items: center; gap: 7px; }
+      .language-select, .voice-toggle {
+        min-height: 34px;
+        border: 1px solid rgba(255,255,255,.18);
+        border-radius: 8px;
+        color: #edf1f7;
+        background: rgba(7,12,20,.26);
+        font-size: 10px;
+        font-weight: 650;
+      }
+      .language-select { max-width: 150px; padding: 0 26px 0 9px; }
+      .language-select option { color: #172033; background: #fff; }
+      .voice-toggle { padding: 0 9px; cursor: pointer; }
+      .voice-toggle[aria-pressed="true"] {
+        border-color: rgba(var(--gg-blue-rgb), .7);
+        color: #fff;
+        background: rgba(var(--gg-blue-rgb), .24);
+      }
+      .voice-toggle:disabled, .microphone-button:disabled {
+        cursor: not-allowed;
+        opacity: .48;
       }
       .swatches { display: flex; align-items: center; gap: 6px; }
       .color-swatch {
@@ -188,6 +215,40 @@
         font-size: 12px;
         line-height: 1.45;
       }
+      .goal-input-wrap { position: relative; }
+      .goal-input-wrap textarea { padding-right: 72px; }
+      .microphone-button {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        min-width: 54px;
+        min-height: 34px;
+        padding: 0 8px;
+        border: 1px solid rgba(255,255,255,.18);
+        border-radius: 8px;
+        color: #dce3ee;
+        background: rgba(255,255,255,.07);
+        cursor: pointer;
+        font-size: 10px;
+        font-weight: 750;
+      }
+      .microphone-button:hover:not(:disabled) { color: #fff; background: rgba(255,255,255,.12); }
+      .microphone-button.is-listening {
+        border-color: rgba(var(--gg-blue-rgb), .72);
+        color: #fff;
+        background: rgba(var(--gg-blue-rgb), .3);
+        box-shadow: 0 0 0 3px rgba(var(--gg-blue-rgb), .14);
+      }
+      .speech-status {
+        min-height: 15px;
+        margin: 5px 0 0;
+        color: #aeb8c8;
+        font-size: 9px;
+        line-height: 1.4;
+      }
+      .speech-status[data-state="listening"] { color: var(--gg-blue-soft); }
+      .speech-status[data-state="ready"] { color: #b9efcb; }
+      .speech-status[data-state="error"] { color: #ffd0d0; }
       .context {
         margin: 7px 0 11px;
         color: #758196;
@@ -496,56 +557,78 @@
         .drag-handle { cursor: default; touch-action: auto; }
         .drag-label { display: none; }
         #resize-handle { display: none !important; }
-        .customizer { align-items: flex-start; flex-direction: column; }
+        .customizer-row { align-items: flex-start; flex-direction: column; }
+        .preference-controls { width: 100%; flex-wrap: wrap; }
       }
     </style>
 
     <button id="launcher" type="button" aria-label="Open GuideGPT">
-      <span class="brand-dot">G</span><span>GuideGPT</span>
+      <span class="brand-dot">G</span><span id="launcher-label">GuideGPT</span>
     </button>
 
     <section id="panel" hidden aria-label="GuideGPT" aria-live="polite">
       <div id="panel-header" class="header">
         <div id="drag-handle" class="brand drag-handle" role="button" tabindex="0" aria-label="Move GuideGPT window. Drag or use arrow keys.">
-          <span class="brand-dot">G</span><span>GUIDEGPT</span><span class="drag-label" aria-hidden="true">Drag</span>
+          <span class="brand-dot">G</span><span>GUIDEGPT</span><span id="drag-label" class="drag-label" aria-hidden="true">Drag</span>
         </div>
         <div class="header-actions">
-          <button id="customize-button" class="icon-button text-button" type="button" aria-label="Customize GuideGPT color" aria-expanded="false">Color</button>
+          <button id="customize-button" class="icon-button text-button" type="button" aria-label="Customize GuideGPT" aria-expanded="false">Options</button>
           <button id="history-button" class="icon-button" type="button" aria-label="Mission history">History</button>
           <button id="close-button" class="icon-button" type="button" aria-label="Close GuideGPT">Close</button>
         </div>
       </div>
 
-      <div id="customizer" class="customizer" role="group" aria-label="GuideGPT color" hidden>
-        <span class="customizer-label">Window color</span>
-        <div class="swatches">
-          <button class="color-swatch" data-theme="cobalt" type="button" aria-label="Cobalt" aria-pressed="true"></button>
-          <button class="color-swatch" data-theme="violet" type="button" aria-label="Violet" aria-pressed="false"></button>
-          <button class="color-swatch" data-theme="rose" type="button" aria-label="Rose" aria-pressed="false"></button>
-          <button class="color-swatch" data-theme="amber" type="button" aria-label="Amber" aria-pressed="false"></button>
-          <button class="color-swatch" data-theme="emerald" type="button" aria-label="Emerald" aria-pressed="false"></button>
-          <button class="color-swatch" data-theme="graphite" type="button" aria-label="Graphite" aria-pressed="false"></button>
+      <div id="customizer" class="customizer" role="group" aria-label="GuideGPT options" hidden>
+        <div class="customizer-row">
+          <span id="window-color-label" class="customizer-label">Window color</span>
+          <div class="swatches">
+            <button class="color-swatch" data-theme="cobalt" type="button" aria-label="Cobalt" aria-pressed="true"></button>
+            <button class="color-swatch" data-theme="violet" type="button" aria-label="Violet" aria-pressed="false"></button>
+            <button class="color-swatch" data-theme="rose" type="button" aria-label="Rose" aria-pressed="false"></button>
+            <button class="color-swatch" data-theme="amber" type="button" aria-label="Amber" aria-pressed="false"></button>
+            <button class="color-swatch" data-theme="emerald" type="button" aria-label="Emerald" aria-pressed="false"></button>
+            <button class="color-swatch" data-theme="graphite" type="button" aria-label="Graphite" aria-pressed="false"></button>
+          </div>
+        </div>
+        <div class="customizer-row">
+          <label id="language-label" class="customizer-label" for="language-select">Language</label>
+          <div class="preference-controls">
+            <select id="language-select" class="language-select" aria-label="Guide language">
+              <option value="en-US">English (US)</option>
+              <option value="zh-CN">简体中文</option>
+              <option value="ko-KR">한국어</option>
+              <option value="ja-JP">日本語</option>
+              <option value="es-ES">Español</option>
+              <option value="ru-RU">Русский</option>
+              <option value="pt-BR">Português (Brasil)</option>
+            </select>
+            <button id="voice-over-toggle" class="voice-toggle" type="button" aria-pressed="false">Voice-over off</button>
+          </div>
         </div>
       </div>
 
       <div id="start-view">
-        <span class="kicker">Live page guidance</span>
-        <h2>What are you trying to do?</h2>
-        <p class="intro">Describe the outcome. GuideGPT uses the visible page to build a safe, confirmable plan.</p>
+        <span id="start-kicker" class="kicker">Live page guidance</span>
+        <h2 id="start-heading">What are you trying to do?</h2>
+        <p id="start-intro" class="intro">Describe the outcome. GuideGPT uses the visible page to build a safe, confirmable plan.</p>
         <form id="goal-form">
-          <label for="goal-input">Your goal</label>
-          <textarea id="goal-input" maxlength="400" placeholder="Example: Invite a teammate and give them editor access"></textarea>
-          <div class="context">Visible text and controls on this page</div>
+          <label id="goal-label" for="goal-input">Your goal</label>
+          <div class="goal-input-wrap">
+            <textarea id="goal-input" maxlength="400" placeholder="Example: Invite a teammate and give them editor access"></textarea>
+            <button id="microphone-button" class="microphone-button" type="button" aria-label="Start voice input">Mic</button>
+          </div>
+          <div id="speech-status" class="speech-status" role="status" aria-live="polite"></div>
+          <div id="context-label" class="context">Visible text and controls on this page</div>
           <div id="start-error" class="error" hidden></div>
           <button id="start-button" class="primary" type="submit">Build my guide</button>
         </form>
-        <div class="privacy"><span>Private:</span><span>Page text is used to build this guide and is not saved.</span></div>
+        <div class="privacy"><span id="privacy-prefix">Private:</span><span id="privacy-text">Page text is used to build this guide and is not saved.</span></div>
       </div>
 
       <div id="loading-view" class="loading" hidden>
         <div class="spinner"></div>
-        <strong>Building your guide</strong>
-        <span>Reading visible text and controls only</span>
+        <strong id="loading-title">Building your guide</strong>
+        <span id="loading-detail">Reading visible text and controls only</span>
       </div>
 
       <div id="mission-view" hidden>
@@ -573,14 +656,14 @@
 
       <div id="complete-view" class="complete" hidden>
         <div class="check">OK</div>
-        <h3>Mission complete</h3>
+        <h3 id="complete-title">Mission complete</h3>
         <p id="complete-summary"></p>
         <button id="complete-new" class="primary" type="button">Start another mission</button>
       </div>
 
       <div id="history-view" hidden>
-        <span class="kicker">Private to this extension</span>
-        <h2>Mission history</h2>
+        <span id="history-kicker" class="kicker">Private to this extension</span>
+        <h2 id="history-title">Mission history</h2>
         <div id="history-list" class="history-list"></div>
         <div class="pause-row">
           <button id="history-back" class="link-button" type="button">Back</button>
@@ -616,6 +699,112 @@
   const resizeHandle = q("#resize-handle");
   const dragHandle = q("#drag-handle");
   const mobileQuery = window.matchMedia(`(max-width: ${DESKTOP_BREAKPOINT}px)`);
+  const SUPPORTED_LANGUAGES = ["en-US", "zh-CN", "ko-KR", "ja-JP", "es-ES", "ru-RU", "pt-BR"];
+  const englishStrings = {
+    openGuide: "Open GuideGPT",
+    moveGuide: "Move GuideGPT window. Drag or use arrow keys.",
+    moveUnavailable: "GuideGPT window movement is available on larger screens.",
+    resizeGuide: "Resize GuideGPT window. Drag or use arrow keys.",
+    drag: "Drag",
+    options: "Options",
+    customizeGuide: "Customize GuideGPT",
+    history: "History",
+    close: "Close",
+    windowColor: "Window color",
+    language: "Language",
+    guideLanguage: "Guide language",
+    voiceOn: "Voice-over on",
+    voiceOff: "Voice-over off",
+    voiceUnavailable: "Voice-over is unavailable in this browser.",
+    kicker: "Live page guidance",
+    heading: "What are you trying to do?",
+    intro: "Describe the outcome. GuideGPT uses the visible page to build a safe, confirmable plan.",
+    goal: "Your goal",
+    placeholder: "Example: Invite a teammate and give them editor access",
+    context: "Visible text and controls on this page",
+    build: "Build my guide",
+    privatePrefix: "Private:",
+    privateText: "Page text is used to build this guide and is not saved.",
+    loadingTitle: "Building your guide",
+    loadingDetail: "Reading visible text and controls only",
+    markComplete: "Mark step complete",
+    showMe: "Show me",
+    pause: "Pause mission",
+    resume: "Resume mission",
+    newMission: "New mission",
+    missionComplete: "Mission complete",
+    completeDefault: "Your goal is complete.",
+    startAnother: "Start another mission",
+    historyKicker: "Private to this extension",
+    historyTitle: "Mission history",
+    back: "Back",
+    noMissions: "No missions yet.",
+    untitled: "Untitled page",
+    basicGuide: "Basic guide / ",
+    stepOf: "Step {current} of {total}",
+    nextStep: "Next step",
+    confirm: "Confirm:",
+    defaultVerification: "Check that the page changed as expected.",
+    targetMissing: "That control is not visible right now.",
+    mic: "Mic",
+    startVoice: "Start voice input",
+    stopVoice: "Stop listening",
+    listening: "Listening…",
+    transcriptReady: "Transcript ready — review it, then send manually.",
+    noSpeech: "No speech was detected. Try again or type your goal.",
+    speechPermission: "Microphone access was blocked. Allow it in the browser or type your goal.",
+    speechError: "Voice input stopped. Try again or type your goal.",
+    micUnavailable: "Voice input is not supported here. You can still type your goal.",
+    active: "active",
+    paused: "paused",
+    completed: "completed",
+    fallback: "basic guide",
+  };
+  const strings = {
+    "en-US": englishStrings,
+    "zh-CN": {
+      ...englishStrings,
+      openGuide: "打开 GuideGPT", moveGuide: "移动 GuideGPT 窗口。拖动或使用方向键。", moveUnavailable: "GuideGPT 窗口只能在较大屏幕上移动。", resizeGuide: "调整 GuideGPT 窗口大小。拖动或使用方向键。", drag: "拖动", options: "设置", customizeGuide: "自定义 GuideGPT", history: "历史", close: "关闭", windowColor: "窗口颜色", language: "语言", guideLanguage: "引导语言", voiceOn: "朗读：开", voiceOff: "朗读：关", voiceUnavailable: "此浏览器不支持朗读。",
+      kicker: "实时页面引导", heading: "你想完成什么？", intro: "描述你的目标。GuideGPT 会根据当前页面生成安全且可确认的步骤。", goal: "你的目标", placeholder: "例如：邀请队友并授予编辑权限", context: "当前页面可见的文字和控件", build: "生成引导", privatePrefix: "隐私：", privateText: "页面文字仅用于生成本次引导，不会保存。", loadingTitle: "正在生成引导", loadingDetail: "仅读取可见文字和控件",
+      markComplete: "完成此步骤", showMe: "显示位置", pause: "暂停任务", resume: "继续任务", newMission: "新任务", missionComplete: "任务完成", completeDefault: "你的目标已完成。", startAnother: "开始新任务", historyKicker: "仅保存在此扩展中", historyTitle: "任务历史", back: "返回", noMissions: "暂无任务。", untitled: "未命名页面", basicGuide: "基础引导 / ", stepOf: "第 {current} 步，共 {total} 步", nextStep: "下一步", confirm: "确认：", defaultVerification: "检查页面是否按预期发生变化。", targetMissing: "当前看不到该控件。",
+      mic: "语音", startVoice: "开始语音输入", stopVoice: "停止聆听", listening: "正在聆听…", transcriptReady: "转写已就绪，请检查后手动发送。", noSpeech: "未检测到语音。请重试或输入目标。", speechPermission: "麦克风权限被阻止。请在浏览器中允许，或输入目标。", speechError: "语音输入已停止。请重试或输入目标。", micUnavailable: "此处不支持语音输入，你仍可输入目标。", active: "进行中", paused: "已暂停", completed: "已完成", fallback: "基础引导",
+    },
+    "ko-KR": {
+      ...englishStrings,
+      openGuide: "GuideGPT 열기", moveGuide: "GuideGPT 창을 이동합니다. 드래그하거나 화살표 키를 사용하세요.", moveUnavailable: "GuideGPT 창 이동은 큰 화면에서 사용할 수 있습니다.", resizeGuide: "GuideGPT 창 크기를 조절합니다. 드래그하거나 화살표 키를 사용하세요.", drag: "드래그", options: "설정", customizeGuide: "GuideGPT 맞춤 설정", history: "기록", close: "닫기", windowColor: "창 색상", language: "언어", guideLanguage: "안내 언어", voiceOn: "음성 안내 켜짐", voiceOff: "음성 안내 꺼짐", voiceUnavailable: "이 브라우저에서는 음성 안내를 사용할 수 없습니다.",
+      kicker: "실시간 페이지 안내", heading: "무엇을 하려고 하나요?", intro: "원하는 결과를 설명하세요. GuideGPT가 현재 페이지를 바탕으로 안전하고 확인 가능한 계획을 만듭니다.", goal: "목표", placeholder: "예: 팀원을 초대하고 편집 권한 부여", context: "이 페이지의 보이는 텍스트와 컨트롤", build: "가이드 만들기", privatePrefix: "개인정보:", privateText: "페이지 텍스트는 가이드 생성에만 사용되며 저장되지 않습니다.", loadingTitle: "가이드 만드는 중", loadingDetail: "보이는 텍스트와 컨트롤만 읽는 중",
+      markComplete: "단계 완료", showMe: "위치 보기", pause: "미션 일시 중지", resume: "미션 계속", newMission: "새 미션", missionComplete: "미션 완료", completeDefault: "목표를 완료했습니다.", startAnother: "다른 미션 시작", historyKicker: "이 확장 프로그램에만 비공개", historyTitle: "미션 기록", back: "뒤로", noMissions: "아직 미션이 없습니다.", untitled: "제목 없는 페이지", basicGuide: "기본 가이드 / ", stepOf: "{total}단계 중 {current}단계", nextStep: "다음 단계", confirm: "확인:", defaultVerification: "페이지가 예상대로 변경되었는지 확인하세요.", targetMissing: "해당 컨트롤이 현재 보이지 않습니다.",
+      mic: "음성", startVoice: "음성 입력 시작", stopVoice: "듣기 중지", listening: "듣는 중…", transcriptReady: "변환이 완료되었습니다. 검토한 뒤 직접 보내세요.", noSpeech: "음성이 감지되지 않았습니다. 다시 시도하거나 목표를 입력하세요.", speechPermission: "마이크 접근이 차단되었습니다. 브라우저에서 허용하거나 목표를 입력하세요.", speechError: "음성 입력이 중지되었습니다. 다시 시도하거나 목표를 입력하세요.", micUnavailable: "여기서는 음성 입력을 지원하지 않습니다. 텍스트 입력은 계속 사용할 수 있습니다.", active: "진행 중", paused: "일시 중지", completed: "완료", fallback: "기본 가이드",
+    },
+    "ja-JP": {
+      ...englishStrings,
+      openGuide: "GuideGPT を開く", moveGuide: "GuideGPT ウィンドウを移動します。ドラッグまたは矢印キーを使用してください。", moveUnavailable: "GuideGPT の移動は大きな画面で利用できます。", resizeGuide: "GuideGPT ウィンドウのサイズを変更します。ドラッグまたは矢印キーを使用してください。", drag: "移動", options: "設定", customizeGuide: "GuideGPT をカスタマイズ", history: "履歴", close: "閉じる", windowColor: "ウィンドウ色", language: "言語", guideLanguage: "ガイド言語", voiceOn: "読み上げ：オン", voiceOff: "読み上げ：オフ", voiceUnavailable: "このブラウザでは読み上げを利用できません。",
+      kicker: "リアルタイムページガイド", heading: "何をしたいですか？", intro: "目的を説明してください。GuideGPT が表示中のページから安全で確認可能な手順を作成します。", goal: "目的", placeholder: "例：メンバーを招待して編集権限を付与", context: "このページに表示されているテキストと操作項目", build: "ガイドを作成", privatePrefix: "プライベート：", privateText: "ページのテキストはガイド作成にのみ使用され、保存されません。", loadingTitle: "ガイドを作成中", loadingDetail: "表示中のテキストと操作項目のみを読み取り中",
+      markComplete: "この手順を完了", showMe: "場所を表示", pause: "ミッションを一時停止", resume: "ミッションを再開", newMission: "新しいミッション", missionComplete: "ミッション完了", completeDefault: "目的を達成しました。", startAnother: "別のミッションを開始", historyKicker: "この拡張機能内でのみ非公開", historyTitle: "ミッション履歴", back: "戻る", noMissions: "ミッションはまだありません。", untitled: "無題のページ", basicGuide: "基本ガイド / ", stepOf: "{total} 件中 {current} 件目", nextStep: "次の手順", confirm: "確認：", defaultVerification: "ページが想定どおり変わったことを確認してください。", targetMissing: "その操作項目は現在表示されていません。",
+      mic: "音声", startVoice: "音声入力を開始", stopVoice: "聞き取りを停止", listening: "聞き取り中…", transcriptReady: "文字起こしが完了しました。確認してから手動で送信してください。", noSpeech: "音声を検出できませんでした。再試行するか目的を入力してください。", speechPermission: "マイクへのアクセスがブロックされました。ブラウザで許可するか目的を入力してください。", speechError: "音声入力が停止しました。再試行するか目的を入力してください。", micUnavailable: "ここでは音声入力を利用できません。テキスト入力は使用できます。", active: "進行中", paused: "一時停止", completed: "完了", fallback: "基本ガイド",
+    },
+    "es-ES": {
+      ...englishStrings,
+      openGuide: "Abrir GuideGPT", moveGuide: "Mueve la ventana de GuideGPT. Arrastra o usa las flechas.", moveUnavailable: "El movimiento de GuideGPT está disponible en pantallas grandes.", resizeGuide: "Cambia el tamaño de GuideGPT. Arrastra o usa las flechas.", drag: "Mover", options: "Opciones", customizeGuide: "Personalizar GuideGPT", history: "Historial", close: "Cerrar", windowColor: "Color de ventana", language: "Idioma", guideLanguage: "Idioma de la guía", voiceOn: "Narración activada", voiceOff: "Narración desactivada", voiceUnavailable: "La narración no está disponible en este navegador.",
+      kicker: "Guía de página en vivo", heading: "¿Qué quieres hacer?", intro: "Describe el resultado. GuideGPT usa la página visible para crear un plan seguro y verificable.", goal: "Tu objetivo", placeholder: "Ejemplo: Invitar a alguien y darle acceso de edición", context: "Texto y controles visibles de esta página", build: "Crear mi guía", privatePrefix: "Privado:", privateText: "El texto de la página se usa para crear esta guía y no se guarda.", loadingTitle: "Creando tu guía", loadingDetail: "Leyendo solo el texto y los controles visibles",
+      markComplete: "Marcar paso completado", showMe: "Mostrar", pause: "Pausar misión", resume: "Reanudar misión", newMission: "Nueva misión", missionComplete: "Misión completada", completeDefault: "Tu objetivo está completo.", startAnother: "Iniciar otra misión", historyKicker: "Privado para esta extensión", historyTitle: "Historial de misiones", back: "Volver", noMissions: "Aún no hay misiones.", untitled: "Página sin título", basicGuide: "Guía básica / ", stepOf: "Paso {current} de {total}", nextStep: "Siguiente paso", confirm: "Confirma:", defaultVerification: "Comprueba que la página cambió como esperabas.", targetMissing: "Ese control no está visible ahora.",
+      mic: "Voz", startVoice: "Iniciar entrada de voz", stopVoice: "Dejar de escuchar", listening: "Escuchando…", transcriptReady: "Transcripción lista: revísala y envíala manualmente.", noSpeech: "No se detectó voz. Inténtalo de nuevo o escribe tu objetivo.", speechPermission: "Se bloqueó el micrófono. Permítelo en el navegador o escribe tu objetivo.", speechError: "La entrada de voz se detuvo. Inténtalo de nuevo o escribe tu objetivo.", micUnavailable: "La entrada de voz no está disponible aquí. Puedes escribir tu objetivo.", active: "activa", paused: "en pausa", completed: "completada", fallback: "guía básica",
+    },
+    "ru-RU": {
+      ...englishStrings,
+      openGuide: "Открыть GuideGPT", moveGuide: "Переместить окно GuideGPT. Перетащите его или используйте стрелки.", moveUnavailable: "Перемещение GuideGPT доступно на больших экранах.", resizeGuide: "Изменить размер GuideGPT. Перетащите маркер или используйте стрелки.", drag: "Переместить", options: "Настройки", customizeGuide: "Настроить GuideGPT", history: "История", close: "Закрыть", windowColor: "Цвет окна", language: "Язык", guideLanguage: "Язык инструкций", voiceOn: "Озвучивание включено", voiceOff: "Озвучивание выключено", voiceUnavailable: "Озвучивание недоступно в этом браузере.",
+      kicker: "Инструкции на текущей странице", heading: "Что вы хотите сделать?", intro: "Опишите результат. GuideGPT создаст безопасный и проверяемый план по видимой странице.", goal: "Ваша цель", placeholder: "Например: пригласить коллегу и дать права редактора", context: "Видимый текст и элементы этой страницы", build: "Создать инструкцию", privatePrefix: "Конфиденциально:", privateText: "Текст страницы используется только для создания инструкции и не сохраняется.", loadingTitle: "Создаём инструкцию", loadingDetail: "Читаем только видимый текст и элементы управления",
+      markComplete: "Отметить шаг выполненным", showMe: "Показать", pause: "Приостановить задачу", resume: "Продолжить задачу", newMission: "Новая задача", missionComplete: "Задача выполнена", completeDefault: "Ваша цель достигнута.", startAnother: "Начать другую задачу", historyKicker: "Доступно только этому расширению", historyTitle: "История задач", back: "Назад", noMissions: "Задач пока нет.", untitled: "Страница без названия", basicGuide: "Базовая инструкция / ", stepOf: "Шаг {current} из {total}", nextStep: "Следующий шаг", confirm: "Проверка:", defaultVerification: "Убедитесь, что страница изменилась ожидаемым образом.", targetMissing: "Этот элемент сейчас не виден.",
+      mic: "Голос", startVoice: "Начать голосовой ввод", stopVoice: "Остановить прослушивание", listening: "Слушаю…", transcriptReady: "Текст готов — проверьте его и отправьте вручную.", noSpeech: "Речь не обнаружена. Повторите или введите цель.", speechPermission: "Доступ к микрофону заблокирован. Разрешите его или введите цель.", speechError: "Голосовой ввод остановлен. Повторите или введите цель.", micUnavailable: "Голосовой ввод здесь не поддерживается. Цель можно ввести текстом.", active: "активна", paused: "приостановлена", completed: "выполнена", fallback: "базовая инструкция",
+    },
+    "pt-BR": {
+      ...englishStrings,
+      openGuide: "Abrir GuideGPT", moveGuide: "Mova a janela do GuideGPT. Arraste ou use as setas.", moveUnavailable: "O movimento do GuideGPT está disponível em telas maiores.", resizeGuide: "Redimensione o GuideGPT. Arraste ou use as setas.", drag: "Mover", options: "Opções", customizeGuide: "Personalizar GuideGPT", history: "Histórico", close: "Fechar", windowColor: "Cor da janela", language: "Idioma", guideLanguage: "Idioma do guia", voiceOn: "Narração ativada", voiceOff: "Narração desativada", voiceUnavailable: "A narração não está disponível neste navegador.",
+      kicker: "Orientação ao vivo na página", heading: "O que você quer fazer?", intro: "Descreva o resultado. O GuideGPT usa a página visível para criar um plano seguro e verificável.", goal: "Seu objetivo", placeholder: "Exemplo: convidar alguém e dar acesso de edição", context: "Texto e controles visíveis nesta página", build: "Criar meu guia", privatePrefix: "Privado:", privateText: "O texto da página é usado para criar este guia e não é salvo.", loadingTitle: "Criando seu guia", loadingDetail: "Lendo apenas texto e controles visíveis",
+      markComplete: "Marcar etapa concluída", showMe: "Mostrar", pause: "Pausar missão", resume: "Retomar missão", newMission: "Nova missão", missionComplete: "Missão concluída", completeDefault: "Seu objetivo foi concluído.", startAnother: "Iniciar outra missão", historyKicker: "Privado para esta extensão", historyTitle: "Histórico de missões", back: "Voltar", noMissions: "Ainda não há missões.", untitled: "Página sem título", basicGuide: "Guia básico / ", stepOf: "Etapa {current} de {total}", nextStep: "Próxima etapa", confirm: "Confirme:", defaultVerification: "Confira se a página mudou como esperado.", targetMissing: "Esse controle não está visível agora.",
+      mic: "Voz", startVoice: "Iniciar entrada de voz", stopVoice: "Parar de ouvir", listening: "Ouvindo…", transcriptReady: "Transcrição pronta — revise e envie manualmente.", noSpeech: "Nenhuma fala foi detectada. Tente novamente ou digite seu objetivo.", speechPermission: "O acesso ao microfone foi bloqueado. Permita no navegador ou digite seu objetivo.", speechError: "A entrada de voz parou. Tente novamente ou digite seu objetivo.", micUnavailable: "A entrada de voz não é compatível aqui. Você ainda pode digitar seu objetivo.", active: "ativa", paused: "pausada", completed: "concluída", fallback: "guia básico",
+    },
+  };
   const themes = {
     cobalt: {
       accent: "#1457f5",
@@ -676,10 +865,37 @@
   let layoutMode = currentLayoutMode();
   let layout = {
     theme: "cobalt",
+    language: "en-US",
+    voiceOver: false,
     layouts: Object.fromEntries(LAYOUT_MODES.map((mode) => [mode, { position: null, size: null }])),
   };
   let saveTimer = 0;
   let viewportFrame = 0;
+
+  function supportedLanguage(value) {
+    const normalized = String(value || "").replace("_", "-").toLowerCase();
+    const exact = SUPPORTED_LANGUAGES.find((language) => language.toLowerCase() === normalized);
+    if (exact) return exact;
+    const prefix = normalized.split("-")[0];
+    return SUPPORTED_LANGUAGES.find((language) => language.toLowerCase().startsWith(prefix + "-")) || null;
+  }
+
+  function normalizeLanguage(value) {
+    return supportedLanguage(value) || "en-US";
+  }
+
+  function languageForMission(value = mission) {
+    return supportedLanguage(value?.language) || normalizeLanguage(layout.language);
+  }
+
+  function translate(language, key, variables = {}) {
+    const dictionary = strings[normalizeLanguage(language)] || englishStrings;
+    return String(dictionary[key] ?? englishStrings[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => variables[name] ?? "");
+  }
+
+  function t(key, variables = {}) {
+    return translate(layout.language, key, variables);
+  }
 
   function finiteNumber(value) {
     return typeof value === "number" && Number.isFinite(value) ? value : null;
@@ -709,13 +925,15 @@
   function sanitizeLayout(value) {
     const migratedTheme = legacyThemes[value?.theme] || value?.theme;
     const theme = themes[migratedTheme] ? migratedTheme : "cobalt";
+    const language = normalizeLanguage(value?.language || navigator.language);
+    const voiceOver = value?.voiceOver === true;
     const layouts = Object.fromEntries(
       LAYOUT_MODES.map((mode) => [mode, sanitizeGeometry(value?.layouts?.[mode])]),
     );
     if (!value?.layouts && (value?.position || value?.size)) {
       layouts[currentLayoutMode()] = sanitizeGeometry(value);
     }
-    return { theme, layouts };
+    return { theme, language, voiceOver, layouts };
   }
 
   function activeLayout() {
@@ -745,6 +963,8 @@
     saveTimer = window.setTimeout(() => {
       const snapshot = {
         theme: layout.theme,
+        language: normalizeLanguage(layout.language),
+        voiceOver: layout.voiceOver === true,
         layouts: Object.fromEntries(
           LAYOUT_MODES.map((mode) => {
             const geometry = layout.layouts[mode] || sanitizeGeometry(null);
@@ -780,6 +1000,236 @@
       swatch.setAttribute("aria-pressed", String(swatch.dataset.theme === safeName));
     });
     if (persist) queueLayoutSave();
+  }
+
+  const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  const speechSynthesisSupported = "speechSynthesis" in window && typeof window.SpeechSynthesisUtterance === "function";
+  let recognition = null;
+  let listening = false;
+  let speechBaseText = "";
+  let speechDraft = "";
+  let speechState = SpeechRecognitionAPI
+    ? { type: "idle", key: "" }
+    : { type: "error", key: "micUnavailable" };
+  let lastSpokenKey = "";
+
+  function setText(selector, key) {
+    const element = q(selector);
+    if (element) element.textContent = t(key);
+  }
+
+  function updateMicrophoneControl() {
+    const button = q("#microphone-button");
+    const status = q("#speech-status");
+    button.disabled = !SpeechRecognitionAPI;
+    button.classList.toggle("is-listening", listening);
+    button.setAttribute("aria-pressed", String(listening));
+    button.textContent = t("mic");
+    button.setAttribute("aria-label", listening ? t("stopVoice") : t("startVoice"));
+    button.title = SpeechRecognitionAPI
+      ? (listening ? t("stopVoice") : t("startVoice"))
+      : t("micUnavailable");
+    status.dataset.state = speechState.type;
+    status.textContent = speechState.key ? t(speechState.key) : "";
+  }
+
+  function setSpeechState(type, key = "") {
+    speechState = { type, key };
+    updateMicrophoneControl();
+  }
+
+  function updateVoiceOverControl() {
+    const button = q("#voice-over-toggle");
+    const enabled = speechSynthesisSupported && layout.voiceOver;
+    button.disabled = !speechSynthesisSupported;
+    button.setAttribute("aria-pressed", String(enabled));
+    button.textContent = speechSynthesisSupported
+      ? t(enabled ? "voiceOn" : "voiceOff")
+      : t("voiceUnavailable");
+    button.title = speechSynthesisSupported ? button.textContent : t("voiceUnavailable");
+  }
+
+  function applyLocale() {
+    layout.language = normalizeLanguage(layout.language);
+    panel.lang = layout.language;
+    q("#launcher").lang = layout.language;
+    q("#launcher").setAttribute("aria-label", t("openGuide"));
+    q("#customizer").setAttribute("aria-label", t("customizeGuide"));
+    q("#customize-button").setAttribute("aria-label", t("customizeGuide"));
+    q("#history-button").setAttribute("aria-label", t("history"));
+    q("#close-button").setAttribute("aria-label", t("close"));
+    q("#resize-handle").setAttribute("aria-label", t("resizeGuide"));
+    q("#language-select").setAttribute("aria-label", t("guideLanguage"));
+    q("#language-select").value = layout.language;
+    setText("#drag-label", "drag");
+    setText("#customize-button", "options");
+    setText("#history-button", "history");
+    setText("#close-button", "close");
+    setText("#window-color-label", "windowColor");
+    setText("#language-label", "language");
+    setText("#start-kicker", "kicker");
+    setText("#start-heading", "heading");
+    setText("#start-intro", "intro");
+    setText("#goal-label", "goal");
+    q("#goal-input").placeholder = t("placeholder");
+    setText("#context-label", "context");
+    setText("#start-button", "build");
+    setText("#privacy-prefix", "privatePrefix");
+    setText("#privacy-text", "privateText");
+    setText("#loading-title", "loadingTitle");
+    setText("#loading-detail", "loadingDetail");
+    setText("#complete-step", "markComplete");
+    setText("#show-target", "showMe");
+    setText("#pause-button", paused ? "resume" : "pause");
+    setText("#new-button", "newMission");
+    setText("#complete-title", "missionComplete");
+    setText("#complete-new", "startAnother");
+    setText("#history-kicker", "historyKicker");
+    setText("#history-title", "historyTitle");
+    setText("#history-back", "back");
+    updateMoveHandleAccessibility();
+    updateMicrophoneControl();
+    updateVoiceOverControl();
+    if (mission && (currentView === "mission" || currentView === "complete")) renderMission();
+  }
+
+  function cancelRecognition() {
+    if (recognition) {
+      try {
+        recognition.abort();
+      } catch {
+        // The recognition session may already have ended.
+      }
+    }
+    recognition = null;
+    listening = false;
+    speechBaseText = "";
+    speechDraft = "";
+    setSpeechState(SpeechRecognitionAPI ? "idle" : "error", SpeechRecognitionAPI ? "" : "micUnavailable");
+  }
+
+  function startVoiceInput() {
+    if (!SpeechRecognitionAPI) {
+      setSpeechState("error", "micUnavailable");
+      return;
+    }
+    if (listening && recognition) {
+      try {
+        recognition.stop();
+      } catch {
+        cancelRecognition();
+      }
+      return;
+    }
+
+    const input = q("#goal-input");
+    speechBaseText = input.value.trim();
+    speechDraft = "";
+    const session = new SpeechRecognitionAPI();
+    recognition = session;
+    session.lang = normalizeLanguage(layout.language);
+    session.continuous = false;
+    session.interimResults = true;
+    session.maxAlternatives = 1;
+    session.onstart = () => {
+      if (recognition !== session) return;
+      listening = true;
+      setSpeechState("listening", "listening");
+    };
+    session.onresult = (event) => {
+      if (recognition !== session) return;
+      const finalParts = [];
+      const interimParts = [];
+      for (let index = 0; index < event.results.length; index += 1) {
+        const transcript = event.results[index][0]?.transcript?.trim();
+        if (!transcript) continue;
+        if (event.results[index].isFinal) finalParts.push(transcript);
+        else interimParts.push(transcript);
+      }
+      speechDraft = [...finalParts, ...interimParts].join(" ").trim();
+      input.value = [speechBaseText, speechDraft].filter(Boolean).join(" ").slice(0, 400);
+      if (finalParts.length) setSpeechState("ready", "transcriptReady");
+      else setSpeechState("listening", "listening");
+    };
+    session.onerror = (event) => {
+      if (recognition !== session) return;
+      listening = false;
+      const key = event.error === "not-allowed" || event.error === "service-not-allowed"
+        ? "speechPermission"
+        : event.error === "no-speech"
+          ? "noSpeech"
+          : event.error === "aborted"
+            ? ""
+            : "speechError";
+      setSpeechState(key ? "error" : "idle", key);
+    };
+    session.onend = () => {
+      if (recognition !== session) return;
+      recognition = null;
+      listening = false;
+      if (speechState.type === "listening") {
+        setSpeechState(speechDraft ? "ready" : "idle", speechDraft ? "transcriptReady" : "");
+      } else {
+        updateMicrophoneControl();
+      }
+      if (speechDraft) input.focus();
+    };
+    try {
+      session.start();
+    } catch {
+      if (recognition === session) recognition = null;
+      listening = false;
+      setSpeechState("error", "speechError");
+    }
+  }
+
+  function cancelVoiceOver() {
+    if (speechSynthesisSupported) window.speechSynthesis.cancel();
+  }
+
+  function voiceForLanguage(language) {
+    if (!speechSynthesisSupported) return null;
+    const normalized = normalizeLanguage(language).toLowerCase();
+    const prefix = normalized.split("-")[0];
+    const voices = window.speechSynthesis.getVoices();
+    return voices.find((voice) => voice.lang.toLowerCase() === normalized)
+      || voices.find((voice) => voice.lang.toLowerCase().split("-")[0] === prefix)
+      || null;
+  }
+
+  function speakCurrentMission(force = false) {
+    if (!speechSynthesisSupported || !layout.voiceOver || !mission) return;
+    const total = mission.steps?.length || 0;
+    const index = Math.min(mission.currentStep || 0, total);
+    const spokenLanguage = languageForMission(mission);
+    const missionKey = String(mission.id || mission.goal || "mission");
+    const completed = mission.status === "completed" || index >= total;
+    const spokenPrefix = `${spokenLanguage}:${missionKey}:`;
+    const spokenKey = completed ? `${spokenPrefix}complete` : `${spokenPrefix}${index}`;
+    if (!force && spokenKey === lastSpokenKey) return;
+
+    const parts = [];
+    const sameMission = lastSpokenKey.startsWith(spokenPrefix);
+    if (mission.summary && (!sameMission || force || completed)) parts.push(mission.summary);
+    if (completed) {
+      parts.unshift(translate(spokenLanguage, "missionComplete"));
+      if (!mission.summary) parts.push(translate(spokenLanguage, "completeDefault"));
+    } else {
+      const step = mission.steps?.[index];
+      if (!step) return;
+      parts.push(step.title || translate(spokenLanguage, "nextStep"));
+      if (step.instruction) parts.push(step.instruction);
+      parts.push(`${translate(spokenLanguage, "confirm")} ${step.verification || translate(spokenLanguage, "defaultVerification")}`);
+      if (step.caution) parts.push(step.caution);
+    }
+
+    cancelVoiceOver();
+    const utterance = new window.SpeechSynthesisUtterance(parts.join(". "));
+    utterance.lang = spokenLanguage;
+    const voice = voiceForLanguage(utterance.lang);
+    if (voice) utterance.voice = voice;
+    window.speechSynthesis.speak(utterance);
+    lastSpokenKey = spokenKey;
   }
 
   function updateResizeHandle() {
@@ -889,9 +1339,7 @@
     dragHandle.setAttribute("aria-disabled", String(mobile));
     dragHandle.setAttribute(
       "aria-label",
-      mobile
-        ? "GuideGPT window movement is available on larger screens."
-        : "Move GuideGPT window. Drag or use arrow keys.",
+      t(mobile ? "moveUnavailable" : "moveGuide"),
     );
   }
 
@@ -924,6 +1372,8 @@
     q("#customizer").hidden = true;
     q("#customize-button").setAttribute("aria-expanded", "false");
     resizeHandle.hidden = true;
+    cancelRecognition();
+    cancelVoiceOver();
   }
 
   function errorAt(selector, message = "") {
@@ -981,6 +1431,19 @@
     "[role='menuitem']",
   ].join(",");
 
+  function isInsideEditableRegion(element) {
+    let current = element;
+    while (current) {
+      if (current.hasAttribute?.("contenteditable")) {
+        const value = String(current.getAttribute("contenteditable") || "").trim().toLowerCase();
+        if (value === "false") return false;
+        if (value === "" || value === "true" || value === "plaintext-only") return true;
+      }
+      current = current.parentElement;
+    }
+    return false;
+  }
+
   function collectPage() {
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     const chunks = [];
@@ -990,7 +1453,8 @@
     while ((node = walker.nextNode()) && length < 12000) {
       const parent = node.parentElement;
       if (!parent || !isVisible(parent)) continue;
-      if (parent.closest("script,style,noscript,template,input,textarea,[contenteditable='true']")) continue;
+      if (parent.closest("script,style,noscript,template,input,textarea")) continue;
+      if (isInsideEditableRegion(parent)) continue;
       const value = node.nodeValue.replace(/\s+/g, " ").trim();
       if (!value) continue;
       chunks.push(value);
@@ -1001,6 +1465,7 @@
     const interactiveElements = [];
     for (const element of document.querySelectorAll(interactiveSelector)) {
       if (!isVisible(element) || element === host) continue;
+      if (isInsideEditableRegion(element)) continue;
       const label = labelFor(element);
       if (!label) continue;
       const item = { role: roleFor(element), label };
@@ -1025,23 +1490,24 @@
     const index = Math.min(mission.currentStep || 0, total);
 
     if (mission.status === "completed" || index >= total) {
-      q("#complete-summary").textContent = mission.summary || "Your goal is complete.";
+      q("#complete-summary").textContent = mission.summary || t("completeDefault");
       showView("complete");
+      speakCurrentMission();
       return;
     }
 
     const step = mission.steps[index];
     if (!step) return;
     showView("mission");
-    q("#step-count").textContent = (mission.generationMode === "fallback" ? "Basic guide / " : "") + "Step " + (index + 1) + " of " + total;
+    q("#step-count").textContent = (mission.generationMode === "fallback" ? t("basicGuide") : "") + t("stepOf", { current: index + 1, total });
     q("#target-label").textContent = step.targetText || "";
-    q("#step-title").textContent = step.title || "Next step";
+    q("#step-title").textContent = step.title || t("nextStep");
     q("#step-instruction").textContent = step.instruction || "";
-    q("#step-verify").textContent = "Confirm: " + (step.verification || "Check that the page changed as expected.");
+    q("#step-verify").textContent = t("confirm") + " " + (step.verification || t("defaultVerification"));
     q("#step-caution").textContent = step.caution || "";
     q("#step-caution").hidden = !step.caution;
     q("#show-target").hidden = !step.targetText;
-    q("#pause-button").textContent = paused ? "Resume mission" : "Pause mission";
+    q("#pause-button").textContent = t(paused ? "resume" : "pause");
 
     const progress = q("#progress");
     progress.replaceChildren();
@@ -1050,6 +1516,7 @@
       if (stepIndex < index) marker.className = "done";
       progress.appendChild(marker);
     });
+    speakCurrentMission();
   }
 
   function findTarget(text) {
@@ -1068,7 +1535,7 @@
   function highlightTarget(text) {
     const target = findTarget(text);
     if (!target) {
-      errorAt("#mission-error", "That control is not visible right now.");
+      errorAt("#mission-error", t("targetMissing"));
       return;
     }
 
@@ -1096,6 +1563,13 @@
 
   async function startMission(event) {
     event.preventDefault();
+    if (listening && recognition) {
+      try {
+        recognition.stop();
+      } catch {
+        cancelRecognition();
+      }
+    }
     const goal = q("#goal-input").value.trim();
     if (goal.length < 3 || loading) return;
 
@@ -1106,7 +1580,7 @@
     try {
       const result = await send({
         type: "GUIDEGPT_ANALYZE",
-        payload: { goal, ...collectPage() },
+        payload: { goal, language: normalizeLanguage(layout.language), ...collectPage() },
       });
       mission = result.mission;
       paused = false;
@@ -1149,22 +1623,29 @@
       if (!result.missions?.length) {
         const empty = document.createElement("div");
         empty.className = "history-empty";
-        empty.textContent = "No missions yet.";
+        empty.textContent = t("noMissions");
         list.appendChild(empty);
       } else {
         result.missions.forEach((item) => {
+          const itemLanguage = languageForMission(item);
           const button = document.createElement("button");
           button.className = "history-item";
           button.type = "button";
           const title = document.createElement("strong");
           title.textContent = item.goal;
+          title.lang = itemLanguage;
+          title.dir = "auto";
           const page = document.createElement("span");
-          page.textContent = item.pageTitle || item.pageUrl || "Untitled page";
+          page.textContent = item.pageTitle || item.pageUrl || t("untitled");
           const status = document.createElement("span");
-          status.textContent = item.status + (item.generationMode === "fallback" ? " / basic guide" : "") + " / " + new Date(item.updatedAt).toLocaleString();
+          const localizedStatus = t(["active", "paused", "completed"].includes(item.status) ? item.status : "active");
+          status.textContent = localizedStatus + (item.generationMode === "fallback" ? " / " + t("fallback") : "") + " / " + new Date(item.updatedAt).toLocaleString(layout.language);
           button.append(title, page, status);
           button.addEventListener("click", () => {
-            mission = item;
+            mission = { ...item, language: itemLanguage };
+            layout.language = itemLanguage;
+            queueLayoutSave();
+            applyLocale();
             paused = item.status === "paused";
             renderMission();
           });
@@ -1184,6 +1665,9 @@
     q("#goal-input").value = "";
     errorAt("#start-error");
     errorAt("#mission-error");
+    cancelRecognition();
+    cancelVoiceOver();
+    lastSpokenKey = "";
     showView("start");
     q("#goal-input").focus();
   }
@@ -1295,6 +1779,33 @@
     });
   });
 
+  q("#microphone-button").addEventListener("click", startVoiceInput);
+  q("#goal-input").addEventListener("input", () => {
+    if (!listening && SpeechRecognitionAPI && speechState.type !== "idle") setSpeechState("idle");
+  });
+  q("#language-select").addEventListener("change", (event) => {
+    cancelRecognition();
+    layout.language = normalizeLanguage(event.target.value);
+    queueLayoutSave();
+    applyLocale();
+    if (layout.voiceOver) {
+      lastSpokenKey = "";
+      speakCurrentMission(true);
+    }
+  });
+  q("#voice-over-toggle").addEventListener("click", () => {
+    if (!speechSynthesisSupported) return;
+    layout.voiceOver = !layout.voiceOver;
+    queueLayoutSave();
+    updateVoiceOverControl();
+    if (layout.voiceOver) {
+      lastSpokenKey = "";
+      speakCurrentMission(true);
+    } else {
+      cancelVoiceOver();
+    }
+  });
+
   q("#launcher").addEventListener("click", openPanel);
   q("#close-button").addEventListener("click", closePanel);
   q("#history-button").addEventListener("click", showHistory);
@@ -1356,18 +1867,28 @@
 
   chrome.storage?.onChanged?.addListener((changes, areaName) => {
     if (areaName !== "local" || !changes[LAYOUT_STORAGE_KEY]?.newValue) return;
+    const previousLanguage = layout.language;
+    const previousVoiceOver = layout.voiceOver;
+    const spokenBeforeUpdate = lastSpokenKey;
     layout = sanitizeLayout(changes[LAYOUT_STORAGE_KEY].newValue);
     applyTheme(layout.theme);
+    applyLocale();
     applyStoredGeometry();
+    if (!layout.voiceOver) cancelVoiceOver();
+    if (layout.voiceOver && lastSpokenKey === spokenBeforeUpdate && (!previousVoiceOver || previousLanguage !== layout.language)) {
+      lastSpokenKey = "";
+      speakCurrentMission(true);
+    }
   });
 
   readSavedLayout().then((saved) => {
     layout = sanitizeLayout(saved);
     applyTheme(layout.theme);
+    applyLocale();
     applyStoredGeometry();
   });
 
-  updateMoveHandleAccessibility();
+  applyLocale();
 
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || panel.hidden) return;

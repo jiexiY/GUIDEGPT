@@ -5,10 +5,12 @@ import {
   Eye,
   GithubLogo,
   LockSimple,
+  Microphone,
   PuzzlePiece,
   ShieldCheck,
   Sparkle,
   Target,
+  Translate,
 } from "@phosphor-icons/react";
 
 export function GuideBrand({ compact = false }) {
@@ -65,20 +67,26 @@ function ProductHeader({ health }) {
 function HowItWorks() {
   const items = [
     {
-      icon: Eye,
+      icon: Microphone,
       number: "01",
+      title: "Speak or type in your language",
+      copy: "Talk naturally or type in English, Mandarin, Korean, Japanese, Spanish, Russian, or Portuguese.",
+    },
+    {
+      icon: Eye,
+      number: "02",
       title: "GuideGPT reads the visible page",
       copy: "Only the text and controls on the page you are viewing become context for your guide.",
     },
     {
       icon: Target,
-      number: "02",
+      number: "03",
       title: "You get one clear next step",
       copy: "Each instruction points to a real control, explains what to do, and tells you how to verify it.",
     },
     {
       icon: CheckCircle,
-      number: "03",
+      number: "04",
       title: "You stay in control",
       copy: "GuideGPT never clicks, submits, publishes, or purchases anything on your behalf.",
     },
@@ -115,9 +123,10 @@ function PrivacySection() {
         <h2 id="privacy-title">The page stays yours.</h2>
       </div>
       <div className="privacy-section__copy">
-        <p>Visible page text is used to create the current guide and is not stored. Mission history is private to your anonymous browser session.</p>
+        <p>Visible page text is used to create the current guide and is not stored. The microphone starts only after you choose it; your browser or GuideGPT’s transcription provider may process that short recording, but GuideGPT does not store the audio.</p>
         <div className="privacy-facts">
           <span><Eye size={17} />Visible page only</span>
+          <span><Microphone size={17} />Review every voice transcript before sending</span>
           <span><LockSimple size={17} />No passwords or hidden fields</span>
           <span><ShieldCheck size={17} />You confirm every action</span>
         </div>
@@ -136,7 +145,7 @@ export function ProductHome({ health, onTryDemo }) {
           <div className="hero-copy">
             <span className="hero-eyebrow"><Sparkle size={15} weight="fill" />Live guidance for the web</span>
             <h1 id="hero-title">Get unstuck<br />on any website.</h1>
-            <p>GuideGPT turns your goal into safe, verifiable steps—so you can finish what you started without handing over control.</p>
+            <p>Speak or type what you want to do. GuideGPT reads the visible screen and explains the next safe step in your language.</p>
             <div className="hero-actions">
               <a className="hero-primary" href="/guidegpt-extension.zip" download aria-label="Get the GuideGPT extension">
                 <DownloadSimple size={19} weight="bold" />
@@ -149,6 +158,7 @@ export function ProductHome({ health, onTryDemo }) {
             <div className="hero-trust" aria-label="GuideGPT safety promises">
               <span><ShieldCheck size={17} />Private by design</span>
               <span><CheckCircle size={17} />You approve every step</span>
+              <span><Translate size={17} />Voice guidance in 7 languages</span>
             </div>
           </div>
 

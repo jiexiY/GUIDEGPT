@@ -85,7 +85,10 @@ export default async function handler(request, response) {
         for await (const value of result.partialOutputStream) {
           const payload = JSON.stringify({
             type: "partial",
-            mission: partialMission(value),
+            mission: {
+              ...partialMission(value),
+              language: input.language,
+            },
           });
           if (payload !== lastPartial) {
             response.write(`${payload}\n`);
@@ -121,6 +124,7 @@ export default async function handler(request, response) {
       goal: input.goal,
       pageUrl: input.pageUrl,
       pageTitle: input.pageTitle,
+      language: input.language,
       summary: plan.summary,
       steps: plan.steps,
       usage,

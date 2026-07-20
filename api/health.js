@@ -33,6 +33,7 @@ export default async function handler(request, response) {
     ai: aiConfigured,
     database: databaseReachable,
     sessions,
+    voiceTranscription: aiConfigured && databaseReachable && sessions,
   };
   const ready = services.guidance;
 
@@ -41,6 +42,7 @@ export default async function handler(request, response) {
     services,
     mode: aiConfigured ? "ai_with_fallback" : "fallback",
     model: selectedModel(),
-    version: "1.3.0",
+    transcriptionModel: process.env.TRANSCRIPTION_MODEL || "openai/whisper-1",
+    version: "1.4.0",
   });
 }

@@ -9,6 +9,13 @@ import {
   updateMission,
 } from "@/lib/api";
 import { capturePageContext, findVisibleTarget } from "@/lib/page-context";
+import {
+  localizedDemoCopy,
+  normalizeLanguage,
+  persistLanguagePreference,
+  readLanguagePreference,
+  t,
+} from "@/lib/languages";
 
 const demoMission = {
   id: "guidegpt-welcome-demo",
@@ -43,17 +50,26 @@ const demoMission = {
   ],
 };
 
-function freshDemoMission() {
+function freshDemoMission(language) {
+  const localized = localizedDemoCopy(language);
   return {
     ...demoMission,
-    steps: demoMission.steps.map((step) => ({ ...step })),
+    goal: localized.goal,
+    summary: localized.summary,
+    language,
+    steps: demoMission.steps.map((step, index) => ({
+      ...step,
+      title: localized.steps[index]?.[0] || step.title,
+      instruction: localized.steps[index]?.[1] || step.instruction,
+    })),
   };
 }
 
 export function App() {
+  const [language, setLanguage] = useState(readLanguagePreference);
   const [health, setHealth] = useState({ status: "checking", services: {} });
   const [missions, setMissions] = useState([]);
-  const [mission, setMission] = useState(() => freshDemoMission());
+  const [mission, setMission] = useState(() => freshDemoMission(language));
   const [assistantOpen, setAssistantOpen] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [composer, setComposer] = useState("");
@@ -79,7 +95,7 @@ export function App() {
   }, []);
 
   function openDemo() {
-    setMission(freshDemoMission());
+    setMission(freshDemoMission(language));
     setComposer("");
     setError("");
     setHistoryOpen(false);
@@ -89,13 +105,22 @@ export function App() {
     }, 0);
   }
 
+  function changeLanguage(nextLanguage) {
+    const normalized = persistLanguagePreference(nextLanguage);
+    setLanguage(normalized);
+    setError("");
+    setMission((current) => current?.id === demoMission.id
+      ? freshDemoMission(normalized)
+      : current);
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     const goal = composer.trim();
     if (goal.length < 3 || loading) return;
 
     if (health.status !== "ready") {
-      setError("The live guide is still connecting. You can explore the built-in installation walkthrough meanwhile.");
+      setError(t(language, "connectingError"));
       return;
     }
 
@@ -105,7 +130,8 @@ export function App() {
     setAssistantOpen(true);
     setMission({
       goal,
-      summary: "Reading this page and preparing a safe plan.",
+      language,
+      summary: t(language, "preparingSafePlan"),
       steps: [],
       currentStep: 0,
       status: "active",
@@ -115,7 +141,7 @@ export function App() {
       const root = document.querySelector("#product-surface") || document.body;
       const page = capturePageContext(root);
       const data = await streamMission(
-        { goal, ...page },
+        { goal, language, ...page },
         (partial) => setMission((current) => ({
           ...current,
           ...partial,
@@ -133,7 +159,7 @@ export function App() {
       setComposer("");
     } catch (missionError) {
       setError(missionError.message);
-      setMission(freshDemoMission());
+      setMission(freshDemoMission(language));
     } finally {
       setLoading(false);
     }
@@ -174,7 +200,7 @@ export function App() {
   function handleHighlight(targetText) {
     const target = findVisibleTarget(targetText, document.body);
     if (!target) {
-      setError("That control is not visible on this page right now.");
+      setError(t(language, "highlightError"));
       return;
     }
 
@@ -186,7 +212,9 @@ export function App() {
   }
 
   function resumeMission(selected) {
-    setMission(selected);
+    const missionLanguage = normalizeLanguage(selected?.language);
+    setLanguage(persistLanguagePreference(missionLanguage));
+    setMission({ ...selected, language: missionLanguage });
     setComposer("");
     setError("");
     setHistoryOpen(false);
@@ -210,6 +238,7 @@ export function App() {
         open={assistantOpen}
         historyOpen={historyOpen}
         health={health}
+        language={language}
         mission={mission}
         loading={loading}
         error={error}
@@ -217,6 +246,7 @@ export function App() {
         setComposer={setComposer}
         missions={missions}
         onOpen={() => setAssistantOpen(true)}
+        onLanguageChange={changeLanguage}
         onClose={() => {
           setAssistantOpen(false);
           setHistoryOpen(false);

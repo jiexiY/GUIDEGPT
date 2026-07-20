@@ -42,7 +42,7 @@ No technical vocabulary is required. A user can describe the outcome they want i
 
 ## How it works
 
-1. The user describes what they want to accomplish.
+1. The user speaks or types what they want to accomplish.
 2. GuideGPT reads the visible text and control labels on the current page.
 3. It creates a short, safe sequence using controls that are actually visible.
 4. The side chat explains the current step in plain language.
@@ -67,6 +67,9 @@ The user remains in control at every step, with enough context to understand an 
 
 - **On-screen guidance:** a compact step card identifies the next relevant action.
 - **Live side chat:** ask questions and receive explanations without leaving the current page.
+- **Voice input with review:** talk to GuideGPT, check or edit the transcript, and choose when to send it.
+- **Optional voice-over:** hear the mission summary and each new step read aloud by the browser.
+- **Seven guide languages:** use English, Mandarin Chinese, Korean, Japanese, Spanish, Russian, or Brazilian Portuguese for goals, interface labels, generated guidance, and spoken steps.
 - **Show me:** highlight a matching visible control without activating it.
 - **Customizable floating window:** drag it, resize width and height independently, minimize it, or choose from six color themes.
 - **Remembered layouts:** color, size, and position are saved separately for phone, tablet, and desktop layouts.
@@ -76,18 +79,32 @@ The user remains in control at every step, with enough context to understand an 
 
 The homepage is a working product demo, not a collection of example screens. Its built-in mission guides the real extension download and live controls.
 
-## Current release
+## GuideGPT versions
 
-GuideGPT 1.3 includes:
+### GuideGPT 1.0 — Original release
 
-- a responsive React and Vite product experience;
-- deployed Vercel API functions;
-- structured mission generation through Vercel AI Gateway;
-- a deterministic fallback planner;
-- anonymous mission history backed by Neon Postgres;
-- a Manifest V3 Chrome extension for real webpages;
-- draggable, freely resizable, and recolorable floating guidance;
-- request validation, rate limits, session isolation, and privacy protections.
+GuideGPT 1.0 established the original product idea: make unfamiliar technology easier to use through guidance that appears directly beside the task.
+
+- a compact floating Chrome extension for supported webpages;
+- a goal prompt where users could describe what they wanted to do;
+- visible-page context for more relevant guidance;
+- step-by-step instructions and on-page target highlighting;
+- five recent guides saved locally; and
+- an early provider-selectable analysis prototype.
+
+### GuideGPT 1.1 — Voice and multilingual update
+
+GuideGPT 1.1 expands the original experience so more people can ask for and understand help in the way that feels most natural to them.
+
+- voice input with an editable transcript before sending;
+- optional voice-over for mission summaries and new guidance steps;
+- English, Mandarin Chinese, Korean, Japanese, Spanish, Russian, and Brazilian Portuguese;
+- a draggable and freely resizable floating guide with six color choices and adjustable transparency;
+- responsive phone, tablet, and desktop layouts;
+- deployed Vercel API functions with structured AI mission generation and a resilient basic planner;
+- private anonymous mission history backed by Neon Postgres;
+- a Manifest V3 Chrome extension for guidance on real webpages; and
+- stronger request validation, session isolation, rate limits, and privacy protections.
 
 The live product is available at [guidegpt-next.vercel.app](https://guidegpt-next.vercel.app).
 
@@ -111,6 +128,8 @@ See [extension/README.md](extension/README.md) for full extension instructions a
 - URL query strings and fragments are removed before mission history is saved.
 - Password fields, hidden fields, typed form values, textareas, and editable content are excluded from capture.
 - Page content is treated as untrusted data, never as instructions for GuideGPT itself.
+- The microphone starts only after the user chooses it. Browser speech services or GuideGPT's transcription provider may process the audio; GuideGPT does not intentionally store microphone audio.
+- Voice transcripts are shown for review and can be edited or deleted before they are sent as a GuideGPT goal.
 - Anonymous mission history expires automatically after 30 days and can be cleared earlier.
 - API origins, request sizes, session identifiers, and mission schemas are bounded and validated.
 
@@ -133,6 +152,7 @@ Contributions are especially valuable when they make an unfamiliar task easier t
 ### API routes
 
 - `POST /api/analyze` — streamed mission generation with automatic fallback
+- `POST /api/transcribe` — bounded, rate-limited speech-to-text for browsers without built-in recognition
 - `GET /api/history` — private anonymous-session mission history
 - `DELETE /api/history` — clear mission history
 - `PATCH /api/mission` — update progress or pause status
@@ -155,6 +175,7 @@ Environment variables are documented in `.env.example`:
 - `DATABASE_URL` — Neon pooled connection
 - `AUTH_SECRET` — at least 32 random characters for anonymous session signing
 - `AI_MODEL` — optional Gateway model override
+- `TRANSCRIPTION_MODEL` — optional Gateway transcription model override (defaults to `openai/whisper-1`)
 - `AI_GATEWAY_API_KEY` — optional local alternative to Vercel OIDC
 - `PUBLIC_APP_URL` — canonical public GuideGPT URL
 
