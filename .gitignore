@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.vercel/
+.env*
+!.env.example
+.npm-cache/
+.playwright-cli/
+qa/
+output/
+work/
+design-qa.md
+*.log
