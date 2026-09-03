@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "minimum_chrome_version": "109",
+  "name": "GuideGPT",
+  "version": "1.3.0",
+  "description": "Private, resilient step guidance for the webpage you are using.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://guidegpt-next.vercel.app/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Open GuideGPT"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
