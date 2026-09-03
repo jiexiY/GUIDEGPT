@@ -37,7 +37,7 @@ function ProductHeader({ health }) {
         <a href="#how-it-works">How it works</a>
         <a href="#privacy">Privacy</a>
         <a
-          href="https://github.com/jiexiY/GUIDEGPT"
+          href="https://github.com/jiexiY/GUIDEGPT-source"
           target="_blank"
           rel="noreferrer"
         >
@@ -183,7 +183,7 @@ export function ProductHome({ health, onTryDemo }) {
       <footer className="product-footer">
         <GuideBrand compact />
         <span>Safe, confirmable guidance for the web.</span>
-        <a href="https://github.com/jiexiY/GUIDEGPT" target="_blank" rel="noreferrer">View source</a>
+        <a href="https://github.com/jiexiY/GUIDEGPT-source" target="_blank" rel="noreferrer">View source</a>
       </footer>
     </div>
   );
