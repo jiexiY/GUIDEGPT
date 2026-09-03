@@ -16,7 +16,7 @@ Chrome restricts extensions on internal pages such as `chrome://settings` and th
 ## What it can do
 
 - Create a 2–7 step plan from your goal and the current visible page.
-- Fall back to a clearly labeled basic guide if the AI provider is unavailable.
+- Fall back to a clearly labeled basic guide if the guidance service is unavailable.
 - Highlight a matching visible control when you choose **Show me**.
 - Save mission progress to an anonymous extension session.
 - Resume or clear history through the shared GuideGPT service.
